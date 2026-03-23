@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ExtensionInfo
+    id="krecords"
+    displayName="@string/app_name"
+    icon="@drawable/ic_launcher"
+    scansDevices="false"
+    mapLayer="false">
+    <DataType
+        typeId="records-status-field"
+        displayName="@string/ride_field_status"
+        description="@string/ride_field_status_description"
+        graphical="true"
+        icon="@drawable/ic_launcher" />
+    <BonusAction
+        actionId="open-settings"
+        displayName="@string/open_settings" />
+</ExtensionInfo>
