@@ -6,9 +6,11 @@ It syncs your recent segment history, watches your ride live, and shows an in-ri
 
 ## Download
 
-Download the latest APK from the [Releases page](https://github.com/zenpeartree/kRecords/releases).
+Download the current beta APK here:
 
-If you do not see an APK there yet, a public release has not been published yet.
+[kRecords v0.1.0-beta1 APK](https://github.com/zenpeartree/kRecords/releases/download/v0.1.0-beta1/kRecords-v0.1.0-beta1.apk)
+
+You can also browse all builds on the [Releases page](https://github.com/zenpeartree/kRecords/releases).
 
 ## What You Need
 
