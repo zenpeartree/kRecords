@@ -25,33 +25,18 @@
             android:text="@string/status_idle"
             android:textAppearance="@android:style/TextAppearance.DeviceDefault.Small" />
 
-        <EditText
-            android:id="@+id/backendUrlInput"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:hint="Firebase backend URL"
-            android:inputType="textNoSuggestions" />
-
         <TextView
-            android:id="@+id/deviceIdText"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:textAppearance="@android:style/TextAppearance.DeviceDefault.Small" />
-
-        <Button
-            android:id="@+id/saveButton"
+            android:id="@+id/backendInfoText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:text="@string/save_credentials" />
+            android:textAppearance="@android:style/TextAppearance.DeviceDefault.Small" />
 
         <Button
             android:id="@+id/startAuthButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="16dp"
             android:text="Start Strava Auth" />
 
         <Button

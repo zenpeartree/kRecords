@@ -6,9 +6,8 @@
     <string name="ride_field_status_title">kRecords</string>
     <string name="ride_field_status_subtitle">Tap to manage backend sync</string>
     <string name="open_settings">Open Settings</string>
-    <string name="save_credentials">Save Backend URL</string>
     <string name="sync_history">Sync Recent History</string>
     <string name="clear_cache">Clear Cache</string>
     <string name="status_idle">Configure the Firebase backend, then start Strava auth.</string>
-    <string name="auth_help">1. Deploy the Firebase backend and paste its base URL here. 2. Tap Start Strava Auth and scan the QR on your phone. 3. Finish Strava login on the phone. 4. Tap Check Auth Status. 5. Sync recent history and start riding.</string>
+    <string name="auth_help">1. Tap Start Strava Auth and scan the QR on your phone. 2. Finish Strava login on the phone. 3. Tap Check Auth Status. 4. Sync recent history and start riding.</string>
 </resources>

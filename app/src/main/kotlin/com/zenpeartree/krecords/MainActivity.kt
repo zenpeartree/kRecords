@@ -1,8 +1,9 @@
 package com.zenpeartree.krecords
 
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.widget.Button
-import android.widget.EditText
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
@@ -10,17 +11,23 @@ import java.util.concurrent.Executors
 
 class MainActivity : AppCompatActivity() {
     private val executor = Executors.newSingleThreadExecutor()
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     private lateinit var settings: SettingsStore
     private lateinit var repo: SegmentDatabase
     private lateinit var syncEngine: BackendSyncEngine
 
-    private lateinit var backendUrlInput: EditText
-    private lateinit var deviceIdText: TextView
     private lateinit var authQrImage: ImageView
     private lateinit var authUrlText: TextView
+    private lateinit var backendInfoText: TextView
     private lateinit var statusText: TextView
     private lateinit var summaryText: TextView
+    private var authPolling = false
+    private val authPollRunnable = object : Runnable {
+        override fun run() {
+            pollAuthStatus()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -30,25 +37,17 @@ class MainActivity : AppCompatActivity() {
         repo = SegmentDatabase(this)
         syncEngine = BackendSyncEngine(settings, repo, TilePlanner())
 
-        backendUrlInput = findViewById(R.id.backendUrlInput)
-        deviceIdText = findViewById(R.id.deviceIdText)
         authQrImage = findViewById(R.id.authQrImage)
         authUrlText = findViewById(R.id.authUrlText)
+        backendInfoText = findViewById(R.id.backendInfoText)
         statusText = findViewById(R.id.statusText)
         summaryText = findViewById(R.id.summaryText)
 
+        settings.saveBackendUrl(SettingsStore.PRODUCTION_BACKEND_URL)
         populateInputs()
         refreshSummary()
 
-        findViewById<Button>(R.id.saveButton).setOnClickListener {
-            persistBackendUrl()
-            settings.recordStatus("Backend URL saved.")
-            renderAuthQr()
-            refreshSummary()
-        }
-
         findViewById<Button>(R.id.startAuthButton).setOnClickListener {
-            persistBackendUrl()
             statusText.text = "Creating auth session..."
             executor.execute {
                 val session = syncEngine.startAuthSession(DirectHttpClient())
@@ -59,6 +58,7 @@ class MainActivity : AppCompatActivity() {
                         settings.recordAuthSession(session)
                         settings.recordStatus(session.message)
                         statusText.text = session.message
+                        startAuthPolling(immediate = false)
                     }
                     renderAuthQr()
                     refreshSummary()
@@ -67,7 +67,6 @@ class MainActivity : AppCompatActivity() {
         }
 
         findViewById<Button>(R.id.checkAuthButton).setOnClickListener {
-            persistBackendUrl()
             statusText.text = "Checking auth session..."
             executor.execute {
                 val session = syncEngine.getAuthSessionStatus(DirectHttpClient())
@@ -89,7 +88,6 @@ class MainActivity : AppCompatActivity() {
         }
 
         findViewById<Button>(R.id.syncButton).setOnClickListener {
-            persistBackendUrl()
             statusText.text = "Syncing recent Strava history..."
             executor.execute {
                 val summary = syncEngine.syncRecentActivities(DirectHttpClient())
@@ -113,21 +111,20 @@ class MainActivity : AppCompatActivity() {
         }
 
         renderAuthQr()
+        if (settings.loadBackendConfig()?.activeAuthSessionId != null && !settings.isAuthenticated()) {
+            startAuthPolling(immediate = true)
+        }
     }
 
     override fun onDestroy() {
+        stopAuthPolling()
         executor.shutdownNow()
         super.onDestroy()
     }
 
     private fun populateInputs() {
         val config = settings.loadBackendConfig()
-        backendUrlInput.setText(config?.backendUrl.orEmpty())
-        deviceIdText.text = "Device ID: ${settings.deviceId()}"
-    }
-
-    private fun persistBackendUrl() {
-        settings.saveBackendUrl(backendUrlInput.text.toString())
+        backendInfoText.text = "Backend: ${config?.backendUrl ?: SettingsStore.PRODUCTION_BACKEND_URL}"
     }
 
     private fun renderAuthQr() {
@@ -149,11 +146,62 @@ class MainActivity : AppCompatActivity() {
         authUrlText.text = authUrl
     }
 
+    private fun startAuthPolling(immediate: Boolean) {
+        authPolling = true
+        mainHandler.removeCallbacks(authPollRunnable)
+        if (immediate) {
+            authPollRunnable.run()
+        } else {
+            mainHandler.postDelayed(authPollRunnable, AUTH_POLL_INTERVAL_MS)
+        }
+    }
+
+    private fun stopAuthPolling() {
+        authPolling = false
+        mainHandler.removeCallbacks(authPollRunnable)
+    }
+
+    private fun pollAuthStatus() {
+        if (!authPolling) return
+        if (settings.loadBackendConfig()?.activeAuthSessionId == null) {
+            stopAuthPolling()
+            return
+        }
+
+        executor.execute {
+            val session = syncEngine.getAuthSessionStatus(DirectHttpClient())
+            runOnUiThread {
+                if (!authPolling) {
+                    return@runOnUiThread
+                }
+
+                if (session == null) {
+                    statusText.text = "No active auth session."
+                    stopAuthPolling()
+                } else {
+                    statusText.text = session.message
+                    settings.recordStatus(session.message)
+                    if (session.isComplete) {
+                        settings.recordAuthenticated(session.athleteName)
+                        settings.clearAuthSession()
+                        stopAuthPolling()
+                    } else if (session.status == "error") {
+                        stopAuthPolling()
+                    } else {
+                        mainHandler.postDelayed(authPollRunnable, AUTH_POLL_INTERVAL_MS)
+                    }
+                }
+                renderAuthQr()
+                refreshSummary()
+            }
+        }
+    }
+
     private fun refreshSummary() {
         val dashboard = settings.dashboard(repo.countSegments())
         statusText.text = dashboard.status
         summaryText.text = buildString {
-            appendLine(if (dashboard.configured) "Backend URL configured." else "Backend URL missing.")
+            appendLine(if (dashboard.configured) "Backend configured." else "Backend missing.")
             appendLine(if (dashboard.authenticated) "Strava authorization complete." else "Strava authorization pending.")
             settings.athleteName()?.let { appendLine("Connected athlete: $it") }
             appendLine("${dashboard.segmentCount} segments cached locally.")
@@ -161,5 +209,9 @@ class MainActivity : AppCompatActivity() {
                 appendLine("Last PR: ${dashboard.lastPrName} in ${dashboard.lastPrSeconds}s.")
             }
         }.trim()
+    }
+
+    companion object {
+        private const val AUTH_POLL_INTERVAL_MS = 4_000L
     }
 }

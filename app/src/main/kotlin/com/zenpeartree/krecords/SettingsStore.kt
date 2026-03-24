@@ -7,7 +7,7 @@ class SettingsStore(context: Context) {
     private val prefs = context.getSharedPreferences("krecords-settings", Context.MODE_PRIVATE)
 
     fun loadBackendConfig(): BackendConfig? {
-        val backendUrl = prefs.getString(KEY_BACKEND_URL, null)?.trim().orEmpty()
+        val backendUrl = prefs.getString(KEY_BACKEND_URL, PRODUCTION_BACKEND_URL)?.trim().orEmpty()
         if (backendUrl.isBlank()) {
             return null
         }
@@ -128,5 +128,6 @@ class SettingsStore(context: Context) {
         private const val KEY_LAST_PR_NAME = "last_pr_name"
         private const val KEY_LAST_PR_SECONDS = "last_pr_seconds"
         private const val KEY_LAST_SYNC_AT = "last_sync_at"
+        const val PRODUCTION_BACKEND_URL = "https://krecords-87730.web.app"
     }
 }
