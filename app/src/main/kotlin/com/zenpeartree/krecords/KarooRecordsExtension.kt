@@ -12,7 +12,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
 class KarooRecordsExtension : KarooExtension(EXTENSION_ID, "1") {
-    override val types: List<DataTypeImpl> by lazy { listOf(RideStatusField()) }
+    override val types: List<DataTypeImpl> by lazy { listOf(RideStatusField(), NearbySegmentsField()) }
 
     private lateinit var karooSystem: KarooSystemService
     private lateinit var settings: SettingsStore
@@ -39,9 +39,11 @@ class KarooRecordsExtension : KarooExtension(EXTENSION_ID, "1") {
         repo = SegmentDatabase(this)
         planner = TilePlanner()
         syncEngine = BackendSyncEngine(settings, repo, planner)
+        refreshDebugSnapshot("Extension started.")
 
         karooSystem.connect { connected ->
             if (connected) {
+                refreshDebugSnapshot("Connected to Karoo.")
                 subscribeToRideState()
             }
         }
@@ -65,6 +67,13 @@ class KarooRecordsExtension : KarooExtension(EXTENSION_ID, "1") {
         if (rideStateConsumerId != null) return
         rideStateConsumerId = karooSystem.addConsumer<RideState> { state ->
             val riding = state !is RideState.Idle
+            RideDebugStore.update { snapshot ->
+                snapshot.copy(
+                    rideActive = riding,
+                    lastMessage = if (riding) "Ride active." else "Waiting for ride.",
+                    lastPrName = if (riding) snapshot.lastPrName else null,
+                )
+            }
             if (riding) {
                 ensureLocationConsumer()
                 scheduleHistorySyncIfNeeded()
@@ -79,6 +88,7 @@ class KarooRecordsExtension : KarooExtension(EXTENSION_ID, "1") {
                 lastTileId = null
                 lastRefreshPoint = null
                 setupNoticeShown = false
+                refreshDebugSnapshot("Ride ended.")
             }
         }
     }
@@ -99,22 +109,45 @@ class KarooRecordsExtension : KarooExtension(EXTENSION_ID, "1") {
     private fun handleLocation(sample: LocationSample) {
         val tileId = planner.tileIdFor(sample.point)
         val movedEnough = lastRefreshPoint?.let { haversineMeters(it, sample.point) >= REFRESH_DISTANCE_METERS } ?: true
+        val wantedTiles = planner.tilesWithinRadius(sample.point, FETCH_RADIUS_KM)
         if (tileId != lastTileId || movedEnough) {
-            val wantedTiles = planner.tilesWithinRadius(sample.point, FETCH_RADIUS_KM)
             activeSegments = repo.loadSegmentsForTiles(wantedTiles, MAX_ACTIVE_SEGMENTS)
             scheduleNearbyHydration(wantedTiles)
             lastTileId = tileId
             lastRefreshPoint = sample.point
         }
+        RideDebugStore.update { snapshot ->
+            snapshot.copy(
+                nearbyTileCount = wantedTiles.size,
+                activeSegmentCount = activeSegments.size,
+                locationUpdates = snapshot.locationUpdates + 1,
+                lastMessage = "Tracking ${activeSegments.size} segments.",
+            )
+        }
 
         when (val result = matcher.process(sample, activeSegments)) {
             MatchResult.None -> Unit
-            is MatchResult.Started -> Unit
+            is MatchResult.Started -> {
+                RideDebugStore.update { snapshot ->
+                    snapshot.copy(lastMessage = "On ${result.segmentName}.")
+                }
+            }
             is MatchResult.Finished -> {
                 if (result.isNewPr) {
                     repo.updateLocalBest(result.segmentId, result.elapsedSeconds)
                     settings.recordPr(result.segmentName, result.elapsedSeconds)
+                    RideDebugStore.update { snapshot ->
+                        snapshot.copy(
+                            cachedSegmentCount = repo.countSegments(),
+                            lastMessage = "New PR on ${result.segmentName}.",
+                            lastPrName = result.segmentName,
+                        )
+                    }
                     dispatchPrAlert(result)
+                } else {
+                    RideDebugStore.update { snapshot ->
+                        snapshot.copy(lastMessage = "Finished ${result.segmentName}.")
+                    }
                 }
             }
         }
@@ -128,7 +161,13 @@ class KarooRecordsExtension : KarooExtension(EXTENSION_ID, "1") {
 
         executor.execute {
             try {
-                syncEngine.syncRecentActivities(KarooHttpClient(karooSystem))
+                val summary = syncEngine.syncRecentActivities(KarooHttpClient(karooSystem))
+                RideDebugStore.update { snapshot ->
+                    snapshot.copy(
+                        cachedSegmentCount = repo.countSegments(),
+                        lastMessage = summary.message,
+                    )
+                }
             } finally {
                 syncInFlight.set(false)
             }
@@ -142,6 +181,13 @@ class KarooRecordsExtension : KarooExtension(EXTENSION_ID, "1") {
         if (!syncInFlight.compareAndSet(false, true)) return
 
         val staleTiles = repo.missingOrExpiredTiles(wantedTiles, now).take(MAX_TILE_HYDRATION)
+        RideDebugStore.update { snapshot ->
+            snapshot.copy(
+                nearbyTileCount = wantedTiles.size,
+                staleTileCount = staleTiles.size,
+                lastMessage = if (staleTiles.isEmpty()) "Nearby tiles fresh." else "Hydrating ${staleTiles.size} tiles.",
+            )
+        }
         if (staleTiles.isEmpty()) {
             syncInFlight.set(false)
             return
@@ -150,7 +196,17 @@ class KarooRecordsExtension : KarooExtension(EXTENSION_ID, "1") {
         lastHydrationRequestMs = now
         executor.execute {
             try {
-                syncEngine.hydrateTiles(KarooHttpClient(karooSystem), staleTiles)
+                val summary = syncEngine.hydrateTiles(KarooHttpClient(karooSystem), staleTiles)
+                activeSegments = repo.loadSegmentsForTiles(wantedTiles, MAX_ACTIVE_SEGMENTS)
+                RideDebugStore.update { snapshot ->
+                    snapshot.copy(
+                        cachedSegmentCount = repo.countSegments(),
+                        activeSegmentCount = activeSegments.size,
+                        staleTileCount = 0,
+                        lastHydratedTileCount = summary.tilesHydrated,
+                        lastMessage = summary.message,
+                    )
+                }
             } finally {
                 syncInFlight.set(false)
             }
@@ -201,6 +257,18 @@ class KarooRecordsExtension : KarooExtension(EXTENSION_ID, "1") {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
         )
+    }
+
+    private fun refreshDebugSnapshot(message: String) {
+        RideDebugStore.update { snapshot ->
+            snapshot.copy(
+                configured = settings.isConfigured(),
+                authenticated = settings.isAuthenticated(),
+                cachedSegmentCount = repo.countSegments(),
+                athleteName = settings.athleteName(),
+                lastMessage = message,
+            )
+        }
     }
 
     companion object {

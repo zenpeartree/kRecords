@@ -13,13 +13,15 @@ const stravaClientSecret = defineSecret("STRAVA_CLIENT_SECRET");
 app.set("trust proxy", true);
 app.use(express.json());
 
+const PUBLIC_WEB_BASE_URL = "https://krecords-87730.web.app";
+
 app.post("/api/auth/start", async (req, res) => {
   try {
     const { deviceId, deviceSecret } = parseDeviceBody(req.body);
     const userRef = await ensureUser(deviceId, deviceSecret);
     const sessionId = randomId();
     const state = randomId();
-    const callbackUrl = buildAbsoluteUrl(req, "/api/auth/callback");
+    const callbackUrl = buildPublicUrl("/api/auth/callback");
     const authUrl = buildStravaAuthUrl(callbackUrl, state);
 
     await db.collection("authSessions").doc(sessionId).set({
@@ -530,10 +532,8 @@ function parseLatLng(value: unknown): { lat: number; lng: number } {
   };
 }
 
-function buildAbsoluteUrl(req: Request, path: string): string {
-  const forwardedProto = req.get("x-forwarded-proto")?.split(",")[0]?.trim();
-  const protocol = forwardedProto || req.protocol || "https";
-  return `${protocol}://${req.get("host")}${path}`;
+function buildPublicUrl(path: string): string {
+  return `${PUBLIC_WEB_BASE_URL}${path}`;
 }
 
 function requireString(value: unknown, fieldName: string): string {

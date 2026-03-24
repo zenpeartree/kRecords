@@ -11,6 +11,12 @@
         description="@string/ride_field_status_description"
         graphical="true"
         icon="@drawable/ic_launcher" />
+    <DataType
+        typeId="nearby-segments"
+        displayName="@string/ride_field_nearby"
+        description="@string/ride_field_nearby_description"
+        graphical="true"
+        icon="@drawable/ic_launcher" />
     <BonusAction
         actionId="open-settings"
         displayName="@string/open_settings" />

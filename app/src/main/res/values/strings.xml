@@ -3,6 +3,8 @@
     <string name="app_name">kRecords</string>
     <string name="ride_field_status">kRecords Status</string>
     <string name="ride_field_status_description">Ride field that opens kRecords settings and shows sync status</string>
+    <string name="ride_field_nearby">Nearby Segments</string>
+    <string name="ride_field_nearby_description">Ride field that shows how many nearby segments kRecords is tracking</string>
     <string name="ride_field_status_title">kRecords</string>
     <string name="ride_field_status_subtitle">Tap to manage backend sync</string>
     <string name="open_settings">Open Settings</string>

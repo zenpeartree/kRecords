@@ -83,3 +83,18 @@ data class SyncSummary(
     val tilesHydrated: Int = 0,
     val message: String,
 )
+
+data class RideDebugSnapshot(
+    val configured: Boolean = false,
+    val authenticated: Boolean = false,
+    val rideActive: Boolean = false,
+    val cachedSegmentCount: Int = 0,
+    val activeSegmentCount: Int = 0,
+    val nearbyTileCount: Int = 0,
+    val staleTileCount: Int = 0,
+    val lastHydratedTileCount: Int = 0,
+    val locationUpdates: Int = 0,
+    val athleteName: String? = null,
+    val lastMessage: String = "Waiting for ride.",
+    val lastPrName: String? = null,
+)
