@@ -10,9 +10,10 @@ const app = express();
 const stravaClientId = defineSecret("STRAVA_CLIENT_ID");
 const stravaClientSecret = defineSecret("STRAVA_CLIENT_SECRET");
 
+app.set("trust proxy", true);
 app.use(express.json());
 
-app.post("/auth/start", async (req, res) => {
+app.post("/api/auth/start", async (req, res) => {
   try {
     const { deviceId, deviceSecret } = parseDeviceBody(req.body);
     const userRef = await ensureUser(deviceId, deviceSecret);
@@ -47,7 +48,7 @@ app.post("/auth/start", async (req, res) => {
   }
 });
 
-app.get("/auth/session", async (req, res) => {
+app.get("/api/auth/session", async (req, res) => {
   try {
     const deviceId = requireString(req.query.deviceId, "deviceId");
     const deviceSecret = requireString(req.query.deviceSecret, "deviceSecret");
@@ -76,7 +77,7 @@ app.get("/auth/session", async (req, res) => {
   }
 });
 
-app.get("/auth/callback", async (req, res) => {
+app.get("/api/auth/callback", async (req, res) => {
   const state = requireString(req.query.state, "state");
   const error = optionalString(req.query.error);
   const code = optionalString(req.query.code);
@@ -160,7 +161,7 @@ app.get("/auth/callback", async (req, res) => {
   }
 });
 
-app.post("/sync/history", async (req, res) => {
+app.post("/api/sync/history", async (req, res) => {
   try {
     const { deviceId, deviceSecret } = parseDeviceBody(req.body);
     const user = await loadAuthorizedUser(deviceId, deviceSecret);
@@ -214,7 +215,7 @@ app.post("/sync/history", async (req, res) => {
   }
 });
 
-app.post("/sync/tiles", async (req, res) => {
+app.post("/api/sync/tiles", async (req, res) => {
   try {
     const { deviceId, deviceSecret } = parseDeviceBody(req.body);
     const user = await loadAuthorizedUser(deviceId, deviceSecret);
@@ -385,7 +386,7 @@ async function loadAuthorizedUser(deviceId: string, deviceSecret: string): Promi
 
 function buildStravaAuthUrl(callbackUrl: string, state: string): string {
   const url = new URL("https://www.strava.com/oauth/mobile/authorize");
-  url.searchParams.set("client_id", stravaClientId.value());
+  url.searchParams.set("client_id", stravaClientId.value().trim());
   url.searchParams.set("redirect_uri", callbackUrl);
   url.searchParams.set("response_type", "code");
   url.searchParams.set("approval_prompt", "auto");
@@ -401,8 +402,8 @@ async function exchangeCode(code: string, redirectUri: string) {
       "Content-Type": "application/x-www-form-urlencoded",
     },
     body: new URLSearchParams({
-      client_id: stravaClientId.value(),
-      client_secret: stravaClientSecret.value(),
+      client_id: stravaClientId.value().trim(),
+      client_secret: stravaClientSecret.value().trim(),
       code,
       grant_type: "authorization_code",
       redirect_uri: redirectUri,
@@ -435,8 +436,8 @@ async function ensureAccessToken(deviceId: string, user: UserDoc): Promise<strin
       "Content-Type": "application/x-www-form-urlencoded",
     },
     body: new URLSearchParams({
-      client_id: stravaClientId.value(),
-      client_secret: stravaClientSecret.value(),
+      client_id: stravaClientId.value().trim(),
+      client_secret: stravaClientSecret.value().trim(),
       grant_type: "refresh_token",
       refresh_token: tokens.refreshToken,
     }),
@@ -530,7 +531,9 @@ function parseLatLng(value: unknown): { lat: number; lng: number } {
 }
 
 function buildAbsoluteUrl(req: Request, path: string): string {
-  return `${req.protocol}://${req.get("host")}${path}`;
+  const forwardedProto = req.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const protocol = forwardedProto || req.protocol || "https";
+  return `${protocol}://${req.get("host")}${path}`;
 }
 
 function requireString(value: unknown, fieldName: string): string {
