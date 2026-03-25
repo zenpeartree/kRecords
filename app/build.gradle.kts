@@ -11,8 +11,8 @@ android {
         applicationId = "com.zenpeartree.krecords"
         minSdk = 23
         targetSdk = 35
-        versionCode = 3
-        versionName = "0.1.0-beta2"
+        versionCode = 4
+        versionName = "0.1.0-beta3"
     }
 
     buildTypes {
