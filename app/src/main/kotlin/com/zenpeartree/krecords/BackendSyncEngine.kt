@@ -77,7 +77,7 @@ class BackendSyncEngine(
         repo.upsertSegments(segments, planner)
         body.optString("athleteName").takeIf { it.isNotBlank() }?.let(settings::recordAuthenticated)
         val message = body.optString("message", "Synced recent history.")
-        settings.recordStatus(message)
+        settings.recordHistorySync(message)
         return SyncSummary(
             activitiesSeen = body.optInt("activitiesSeen"),
             segmentsUpdated = body.optInt("segmentsUpdated", segments.size),

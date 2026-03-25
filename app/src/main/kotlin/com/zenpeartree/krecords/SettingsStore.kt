@@ -49,7 +49,13 @@ class SettingsStore(context: Context) {
     fun recordStatus(message: String) {
         prefs.edit()
             .putString(KEY_STATUS, message)
-            .putLong(KEY_LAST_SYNC_AT, System.currentTimeMillis())
+            .apply()
+    }
+
+    fun recordHistorySync(message: String) {
+        prefs.edit()
+            .putString(KEY_STATUS, message)
+            .putLong(KEY_LAST_HISTORY_SYNC_AT, System.currentTimeMillis())
             .apply()
     }
 
@@ -82,10 +88,12 @@ class SettingsStore(context: Context) {
             .remove(KEY_LAST_PR_NAME)
             .remove(KEY_LAST_PR_SECONDS)
             .remove(KEY_LAST_SYNC_AT)
+            .remove(KEY_LAST_HISTORY_SYNC_AT)
             .apply()
     }
 
-    fun lastSyncAt(): Long = prefs.getLong(KEY_LAST_SYNC_AT, 0L)
+    fun lastHistorySyncAt(): Long =
+        prefs.getLong(KEY_LAST_HISTORY_SYNC_AT, prefs.getLong(KEY_LAST_SYNC_AT, 0L))
 
     fun athleteName(): String? = prefs.getString(KEY_ATHLETE_NAME, null)
 
@@ -128,6 +136,7 @@ class SettingsStore(context: Context) {
         private const val KEY_LAST_PR_NAME = "last_pr_name"
         private const val KEY_LAST_PR_SECONDS = "last_pr_seconds"
         private const val KEY_LAST_SYNC_AT = "last_sync_at"
+        private const val KEY_LAST_HISTORY_SYNC_AT = "last_history_sync_at"
         const val PRODUCTION_BACKEND_URL = "https://krecords-87730.web.app"
     }
 }

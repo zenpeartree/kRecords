@@ -1,6 +1,7 @@
 package com.zenpeartree.krecords
 
 import android.content.Intent
+import android.util.Log
 import io.hammerhead.karooext.KarooSystemService
 import io.hammerhead.karooext.extension.DataTypeImpl
 import io.hammerhead.karooext.extension.KarooExtension
@@ -43,7 +44,8 @@ class KarooRecordsExtension : KarooExtension(EXTENSION_ID, "1") {
 
         karooSystem.connect { connected ->
             if (connected) {
-                refreshDebugSnapshot("Connected to Karoo.")
+                ensureLocationConsumer()
+                noteStatus("Connected to Karoo.")
                 subscribeToRideState()
             }
         }
@@ -65,7 +67,9 @@ class KarooRecordsExtension : KarooExtension(EXTENSION_ID, "1") {
 
     private fun subscribeToRideState() {
         if (rideStateConsumerId != null) return
-        rideStateConsumerId = karooSystem.addConsumer<RideState> { state ->
+        rideStateConsumerId = karooSystem.addConsumer<RideState>(
+            onError = { error -> noteStatus("Ride state error: $error") },
+        ) { state ->
             val riding = state !is RideState.Idle
             RideDebugStore.update { snapshot ->
                 snapshot.copy(
@@ -76,26 +80,27 @@ class KarooRecordsExtension : KarooExtension(EXTENSION_ID, "1") {
             }
             if (riding) {
                 ensureLocationConsumer()
+                noteStatus("Ride active.")
                 scheduleHistorySyncIfNeeded()
                 if (!settings.isConfigured() && !setupNoticeShown) {
                     setupNoticeShown = notifyNeedsSetup()
                 }
             } else {
-                locationConsumerId?.let(karooSystem::removeConsumer)
-                locationConsumerId = null
                 matcher.reset()
                 activeSegments = emptyList()
                 lastTileId = null
                 lastRefreshPoint = null
                 setupNoticeShown = false
-                refreshDebugSnapshot("Ride ended.")
+                noteStatus("Ride ended.")
             }
         }
     }
 
     private fun ensureLocationConsumer() {
         if (locationConsumerId != null) return
-        locationConsumerId = karooSystem.addConsumer<OnLocationChanged> { event ->
+        locationConsumerId = karooSystem.addConsumer<OnLocationChanged>(
+            onError = { error -> noteStatus("Location error: $error") },
+        ) { event ->
             handleLocation(
                 LocationSample(
                     point = GeoPoint(event.lat, event.lng),
@@ -117,17 +122,23 @@ class KarooRecordsExtension : KarooExtension(EXTENSION_ID, "1") {
             lastRefreshPoint = sample.point
         }
         RideDebugStore.update { snapshot ->
+            val updates = snapshot.locationUpdates + 1
             snapshot.copy(
                 nearbyTileCount = wantedTiles.size,
                 activeSegmentCount = activeSegments.size,
-                locationUpdates = snapshot.locationUpdates + 1,
+                locationUpdates = updates,
                 lastMessage = "Tracking ${activeSegments.size} segments.",
             )
+        }
+        val nextUpdates = RideDebugStore.current().locationUpdates
+        if (nextUpdates == 1 || nextUpdates % 25 == 0) {
+            noteStatus("Loc $nextUpdates, active ${activeSegments.size}, nearby ${wantedTiles.size}.")
         }
 
         when (val result = matcher.process(sample, activeSegments)) {
             MatchResult.None -> Unit
             is MatchResult.Started -> {
+                noteStatus("Started ${result.segmentName}.")
                 RideDebugStore.update { snapshot ->
                     snapshot.copy(lastMessage = "On ${result.segmentName}.")
                 }
@@ -136,6 +147,7 @@ class KarooRecordsExtension : KarooExtension(EXTENSION_ID, "1") {
                 if (result.isNewPr) {
                     repo.updateLocalBest(result.segmentId, result.elapsedSeconds)
                     settings.recordPr(result.segmentName, result.elapsedSeconds)
+                    noteStatus("New PR on ${result.segmentName}.")
                     RideDebugStore.update { snapshot ->
                         snapshot.copy(
                             cachedSegmentCount = repo.countSegments(),
@@ -145,6 +157,7 @@ class KarooRecordsExtension : KarooExtension(EXTENSION_ID, "1") {
                     }
                     dispatchPrAlert(result)
                 } else {
+                    noteStatus("Finished ${result.segmentName}.")
                     RideDebugStore.update { snapshot ->
                         snapshot.copy(lastMessage = "Finished ${result.segmentName}.")
                     }
@@ -156,12 +169,13 @@ class KarooRecordsExtension : KarooExtension(EXTENSION_ID, "1") {
     private fun scheduleHistorySyncIfNeeded() {
         if (!settings.isConfigured() || !settings.isAuthenticated()) return
         val now = System.currentTimeMillis()
-        if (now - settings.lastSyncAt() < HISTORY_SYNC_INTERVAL_MS) return
+        if (now - settings.lastHistorySyncAt() < HISTORY_SYNC_INTERVAL_MS) return
         if (!syncInFlight.compareAndSet(false, true)) return
 
         executor.execute {
             try {
                 val summary = syncEngine.syncRecentActivities(KarooHttpClient(karooSystem))
+                noteStatus(summary.message)
                 RideDebugStore.update { snapshot ->
                     snapshot.copy(
                         cachedSegmentCount = repo.countSegments(),
@@ -181,6 +195,9 @@ class KarooRecordsExtension : KarooExtension(EXTENSION_ID, "1") {
         if (!syncInFlight.compareAndSet(false, true)) return
 
         val staleTiles = repo.missingOrExpiredTiles(wantedTiles, now).take(MAX_TILE_HYDRATION)
+        if (staleTiles.isNotEmpty()) {
+            noteStatus("Hydrating ${staleTiles.size}/${wantedTiles.size} nearby tiles.")
+        }
         RideDebugStore.update { snapshot ->
             snapshot.copy(
                 nearbyTileCount = wantedTiles.size,
@@ -197,6 +214,7 @@ class KarooRecordsExtension : KarooExtension(EXTENSION_ID, "1") {
         executor.execute {
             try {
                 val summary = syncEngine.hydrateTiles(KarooHttpClient(karooSystem), staleTiles)
+                noteStatus(summary.message)
                 activeSegments = repo.loadSegmentsForTiles(wantedTiles, MAX_ACTIVE_SEGMENTS)
                 RideDebugStore.update { snapshot ->
                     snapshot.copy(
@@ -271,7 +289,14 @@ class KarooRecordsExtension : KarooExtension(EXTENSION_ID, "1") {
         }
     }
 
+    private fun noteStatus(message: String) {
+        Log.i(TAG, message)
+        settings.recordStatus(message)
+        refreshDebugSnapshot(message)
+    }
+
     companion object {
+        private const val TAG = "kRecords"
         const val EXTENSION_ID = "krecords"
         const val BONUS_ACTION_OPEN_SETTINGS = "open-settings"
         const val SETTINGS_INTENT_ACTION = "com.zenpeartree.krecords.OPEN_SETTINGS"
