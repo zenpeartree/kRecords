@@ -7,6 +7,7 @@ import io.hammerhead.karooext.extension.DataTypeImpl
 import io.hammerhead.karooext.extension.KarooExtension
 import io.hammerhead.karooext.models.InRideAlert
 import io.hammerhead.karooext.models.OnLocationChanged
+import io.hammerhead.karooext.models.PlayBeepPattern
 import io.hammerhead.karooext.models.RideState
 import io.hammerhead.karooext.models.SystemNotification
 import java.util.concurrent.Executors
@@ -232,6 +233,15 @@ class KarooRecordsExtension : KarooExtension(EXTENSION_ID, "1") {
     }
 
     private fun dispatchPrAlert(result: MatchResult.Finished) {
+        karooSystem.dispatch(
+            PlayBeepPattern(
+                tones = listOf(
+                    PlayBeepPattern.Tone(frequency = 880, durationMs = 120),
+                    PlayBeepPattern.Tone(frequency = null, durationMs = 60),
+                    PlayBeepPattern.Tone(frequency = 1175, durationMs = 180),
+                )
+            )
+        )
         karooSystem.dispatch(
             InRideAlert(
                 id = "pr-${result.segmentId}",
