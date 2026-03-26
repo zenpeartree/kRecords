@@ -4,7 +4,8 @@
     displayName="@string/app_name"
     icon="@drawable/ic_launcher"
     scansDevices="false"
-    mapLayer="false">
+    mapLayer="false"
+    fitFile="true">
     <DataType
         typeId="records-status-field"
         displayName="@string/ride_field_status"

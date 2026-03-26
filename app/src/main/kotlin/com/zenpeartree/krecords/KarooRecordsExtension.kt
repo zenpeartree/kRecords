@@ -5,6 +5,8 @@ import android.util.Log
 import io.hammerhead.karooext.KarooSystemService
 import io.hammerhead.karooext.extension.DataTypeImpl
 import io.hammerhead.karooext.extension.KarooExtension
+import io.hammerhead.karooext.internal.Emitter
+import io.hammerhead.karooext.models.FitEffect
 import io.hammerhead.karooext.models.InRideAlert
 import io.hammerhead.karooext.models.OnLocationChanged
 import io.hammerhead.karooext.models.PlayBeepPattern
@@ -33,6 +35,7 @@ class KarooRecordsExtension : KarooExtension(EXTENSION_ID, "1") {
     private var lastRefreshPoint: GeoPoint? = null
     private var lastHydrationRequestMs: Long = 0L
     private var setupNoticeShown = false
+    private var fitTrackingActive = false
 
     override fun onCreate() {
         super.onCreate()
@@ -60,6 +63,23 @@ class KarooRecordsExtension : KarooExtension(EXTENSION_ID, "1") {
         super.onDestroy()
     }
 
+    override fun startFit(emitter: Emitter<FitEffect>) {
+        fitTrackingActive = true
+        ensureLocationConsumer()
+        subscribeToRideState()
+        noteStatus("FIT tracking started.")
+
+        emitter.setCancellable {
+            fitTrackingActive = false
+            activeSegments = emptyList()
+            lastTileId = null
+            lastRefreshPoint = null
+            lastHydrationRequestMs = 0L
+            matcher.reset()
+            noteStatus("FIT tracking stopped.")
+        }
+    }
+
     override fun onBonusAction(actionId: String) {
         if (actionId == BONUS_ACTION_OPEN_SETTINGS) {
             openSettings()
@@ -74,7 +94,7 @@ class KarooRecordsExtension : KarooExtension(EXTENSION_ID, "1") {
             val riding = state !is RideState.Idle
             RideDebugStore.update { snapshot ->
                 snapshot.copy(
-                    rideActive = riding,
+                    rideActive = riding || fitTrackingActive,
                     lastMessage = if (riding) "Ride active." else "Waiting for ride.",
                     lastPrName = if (riding) snapshot.lastPrName else null,
                 )
@@ -92,7 +112,7 @@ class KarooRecordsExtension : KarooExtension(EXTENSION_ID, "1") {
                 lastTileId = null
                 lastRefreshPoint = null
                 setupNoticeShown = false
-                noteStatus("Ride ended.")
+                noteStatus(if (fitTrackingActive) "Ride paused, FIT still active." else "Ride ended.")
             }
         }
     }
