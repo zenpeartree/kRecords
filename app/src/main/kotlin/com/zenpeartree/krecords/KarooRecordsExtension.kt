@@ -253,6 +253,7 @@ class KarooRecordsExtension : KarooExtension(EXTENSION_ID, "1") {
     }
 
     private fun dispatchPrAlert(result: MatchResult.Finished) {
+        val detail = buildPrAlertDetail(result)
         karooSystem.dispatch(
             PlayBeepPattern(
                 tones = listOf(
@@ -267,7 +268,7 @@ class KarooRecordsExtension : KarooExtension(EXTENSION_ID, "1") {
                 id = "pr-${result.segmentId}",
                 icon = R.drawable.ic_launcher,
                 title = "New PR",
-                detail = "${result.segmentName} in ${result.elapsedSeconds}s",
+                detail = "${result.segmentName}: $detail",
                 autoDismissMs = 8_000L,
                 backgroundColor = android.R.color.holo_green_dark,
                 textColor = android.R.color.white,
@@ -278,7 +279,7 @@ class KarooRecordsExtension : KarooExtension(EXTENSION_ID, "1") {
                 id = "pr-summary-${result.segmentId}",
                 header = "kRecords",
                 message = "New local PR on ${result.segmentName}",
-                subText = "Elapsed ${result.elapsedSeconds}s",
+                subText = detail,
                 action = "Open",
                 actionIntent = SETTINGS_INTENT_ACTION,
                 style = SystemNotification.Style.EVENT,
@@ -332,9 +333,30 @@ class KarooRecordsExtension : KarooExtension(EXTENSION_ID, "1") {
         const val SETTINGS_INTENT_ACTION = "com.zenpeartree.krecords.OPEN_SETTINGS"
         private const val FETCH_RADIUS_KM = 20.0
         private const val REFRESH_DISTANCE_METERS = 250.0
-        private const val MAX_ACTIVE_SEGMENTS = 250
+        private const val MAX_ACTIVE_SEGMENTS = 1000
         private const val MAX_TILE_HYDRATION = 2
         private const val HISTORY_SYNC_INTERVAL_MS = 6 * 60 * 60 * 1000L
         private const val HYDRATION_INTERVAL_MS = 30_000L
+    }
+}
+
+internal fun buildPrAlertDetail(result: MatchResult.Finished): String {
+    val recorded = formatDurationShort(result.elapsedSeconds)
+    val saved = result.timeSavedSeconds
+    return if (saved != null) {
+        "$recorded, saved ${formatDurationShort(saved)}"
+    } else {
+        recorded
+    }
+}
+
+internal fun formatDurationShort(totalSeconds: Int): String {
+    val hours = totalSeconds / 3600
+    val minutes = (totalSeconds % 3600) / 60
+    val seconds = totalSeconds % 60
+    return if (hours > 0) {
+        "%d:%02d:%02d".format(hours, minutes, seconds)
+    } else {
+        "%d:%02d".format(minutes, seconds)
     }
 }

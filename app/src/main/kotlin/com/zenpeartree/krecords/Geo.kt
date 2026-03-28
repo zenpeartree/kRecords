@@ -36,6 +36,79 @@ fun headingDeltaDegrees(a: Double, b: Double): Double {
     return delta
 }
 
+data class PathProjection(
+    val distanceMeters: Double,
+    val progressMeters: Double,
+    val progressFraction: Double,
+    val totalLengthMeters: Double,
+)
+
+fun polylineLengthMeters(points: List<GeoPoint>): Double {
+    if (points.size < 2) return 0.0
+    var total = 0.0
+    for (index in 0 until points.lastIndex) {
+        total += haversineMeters(points[index], points[index + 1])
+    }
+    return total
+}
+
+fun projectPointToPath(points: List<GeoPoint>, point: GeoPoint): PathProjection? {
+    if (points.isEmpty()) return null
+    if (points.size == 1) {
+        val distance = haversineMeters(points.first(), point)
+        return PathProjection(
+            distanceMeters = distance,
+            progressMeters = 0.0,
+            progressFraction = 0.0,
+            totalLengthMeters = 0.0,
+        )
+    }
+
+    val metersPerDegreeLat = 111_320.0
+    val metersPerDegreeLng = 111_320.0 * cos(Math.toRadians(point.lat)).coerceAtLeast(0.2)
+    val totalLength = polylineLengthMeters(points)
+
+    var bestDistance = Double.MAX_VALUE
+    var bestProgress = 0.0
+    var traversed = 0.0
+
+    for (index in 0 until points.lastIndex) {
+        val start = points[index]
+        val end = points[index + 1]
+        val segmentLength = haversineMeters(start, end)
+        if (segmentLength <= 0.0) continue
+
+        val ax = (start.lng - point.lng) * metersPerDegreeLng
+        val ay = (start.lat - point.lat) * metersPerDegreeLat
+        val bx = (end.lng - point.lng) * metersPerDegreeLng
+        val by = (end.lat - point.lat) * metersPerDegreeLat
+        val abx = bx - ax
+        val aby = by - ay
+        val lengthSquared = abx * abx + aby * aby
+        val t = if (lengthSquared <= 0.0) {
+            0.0
+        } else {
+            ((-ax * abx) + (-ay * aby)) / lengthSquared
+        }.coerceIn(0.0, 1.0)
+
+        val projectedX = ax + abx * t
+        val projectedY = ay + aby * t
+        val distance = sqrt(projectedX * projectedX + projectedY * projectedY)
+        if (distance < bestDistance) {
+            bestDistance = distance
+            bestProgress = traversed + segmentLength * t
+        }
+        traversed += segmentLength
+    }
+
+    return PathProjection(
+        distanceMeters = bestDistance,
+        progressMeters = bestProgress,
+        progressFraction = if (totalLength <= 0.0) 0.0 else (bestProgress / totalLength).coerceIn(0.0, 1.0),
+        totalLengthMeters = totalLength,
+    )
+}
+
 fun decodePolyline(encoded: String): List<GeoPoint> {
     if (encoded.isBlank()) return emptyList()
 
@@ -70,7 +143,7 @@ fun decodePolyline(encoded: String): List<GeoPoint> {
     return downsample(points)
 }
 
-private fun downsample(points: List<GeoPoint>, targetSize: Int = 64): List<GeoPoint> {
+private fun downsample(points: List<GeoPoint>, targetSize: Int = 192): List<GeoPoint> {
     if (points.size <= targetSize) return points
     val step = (points.size - 1).toDouble() / (targetSize - 1)
     return buildList {

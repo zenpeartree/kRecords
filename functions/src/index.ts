@@ -245,8 +245,13 @@ app.post("/api/sync/tiles", async (req, res) => {
       for (const summary of segments.segments ?? []) {
         const segmentId = Number(summary.id ?? 0);
         if (!segmentId) continue;
-        const storedSegment = await fetchSegment(accessToken, segmentId, undefined);
+        const existingSegment = await db.collection("users").doc(deviceId).collection("segments").doc(String(segmentId)).get();
+        const cachedUpdatedAt = Number(existingSegment.data()?.updatedAt ?? 0);
         segmentIds.push(segmentId);
+        if (existingSegment.exists && cachedUpdatedAt > now - SEGMENT_CACHE_TTL_MS) {
+          continue;
+        }
+        const storedSegment = await fetchSegment(accessToken, segmentId, undefined);
         segmentsUpdated += 1;
         await saveSegment(deviceId, storedSegment);
       }
@@ -499,7 +504,7 @@ async function fetchSegment(accessToken: string, segmentId: number, bestElapsedT
 }
 
 async function saveSegment(deviceId: string, segment: StoredSegment) {
-  await db.collection("users").doc(deviceId).collection("segments").doc(String(segment.id)).set(segment);
+  await db.collection("users").doc(deviceId).collection("segments").doc(String(segment.id)).set(stripUndefined(segment));
 }
 
 async function stravaJson<T>(accessToken: string, url: string): Promise<T> {
@@ -552,6 +557,14 @@ function optionalString(value: unknown): string | undefined {
 function randomId(): string {
   return `${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
 }
+
+function stripUndefined<T extends Record<string, unknown>>(value: T): T {
+  return Object.fromEntries(
+    Object.entries(value).filter(([, entryValue]) => entryValue !== undefined),
+  ) as T;
+}
+
+const SEGMENT_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 function sendError(res: Response, error: unknown) {
   const message = error instanceof Error ? error.message : "Unknown error";

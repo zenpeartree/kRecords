@@ -77,6 +77,9 @@ sealed interface MatchResult {
     ) : MatchResult
 }
 
+val MatchResult.Finished.timeSavedSeconds: Int?
+    get() = previousBestSeconds?.minus(elapsedSeconds)?.takeIf { it > 0 }
+
 data class SyncSummary(
     val activitiesSeen: Int = 0,
     val segmentsUpdated: Int = 0,

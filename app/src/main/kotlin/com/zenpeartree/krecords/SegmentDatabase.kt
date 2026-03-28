@@ -180,7 +180,7 @@ class SegmentDatabase(context: Context) : SQLiteOpenHelper(context, DB_NAME, nul
             FROM segments s
             JOIN tile_segments t ON t.segment_id = s.segment_id
             WHERE t.tile_id IN (${tileIds.joinToString(",") { "?" }})
-            ORDER BY s.distance_m DESC
+            ORDER BY s.distance_m ASC, s.updated_at DESC
             LIMIT $limit
         """.trimIndent()
         return readableDatabase.rawQuery(sql, args).use { cursor ->
