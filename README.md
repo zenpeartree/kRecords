@@ -11,11 +11,19 @@ With `kRecords`, you just connect Strava, sync once, and ride. The app keeps a l
 
 ## Download
 
-Download the current beta APK here:
+Download the current APK here:
 
-[kRecords v0.1.0-beta5 APK](https://github.com/zenpeartree/kRecords/releases/download/v0.1.0-beta5/kRecords-v0.1.0-beta5.apk)
+[kRecords v0.1.0 APK](https://github.com/zenpeartree/kRecords/releases/download/v0.1.0/kRecords-v0.1.0.apk)
 
 You can also browse all builds on the [Releases page](https://github.com/zenpeartree/kRecords/releases).
+
+## Optional Support
+
+If `kRecords` saves you some annoyance and you want to leave a little sugar, you can do it here:
+
+[PayPal tip jar](https://www.paypal.com/qrcodes/managed/43c0db10-e8fd-4f6f-b72a-035b8e3bf6d5?utm_source=consweb_more)
+
+This is completely optional and not expected.
 
 ## What It Solves
 
@@ -49,7 +57,7 @@ Karoo Live Segments works well, but for my use case it pushed too much manual wo
 3. Install it:
 
 ```bash
-adb install kRecords-v0.1.0-beta5.apk
+adb install kRecords-v0.1.0.apk
 ```
 
 ## First-Time Setup
