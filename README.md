@@ -1,21 +1,35 @@
 # kRecords
 
-kRecords is a Hammerhead Karoo app that helps you chase personal records on Strava segments.
+kRecords is a Hammerhead Karoo app I built because I was ending up with way too many favorite segments on Strava just to make Karoo Live Segments usable.
 
-It syncs your recent segment history, watches your ride live, and shows an in-ride alert when you beat your current best time on a cached segment.
+I wanted the PR alerts, but I did not want the maintenance work:
+- no constantly starring and unstarring segments on Strava
+- no curating a list before every ride
+- no fiddling with Karoo segment setup beyond signing in once
+
+With `kRecords`, you just connect Strava, sync once, and ride. The app keeps a local segment cache, watches your ride live, and alerts you when you beat your best time on a segment it knows about.
 
 ## Download
 
 Download the current beta APK here:
 
-[kRecords v0.1.0-beta4 APK](https://github.com/zenpeartree/kRecords/releases/download/v0.1.0-beta4/kRecords-v0.1.0-beta4.apk)
+[kRecords v0.1.0-beta5 APK](https://github.com/zenpeartree/kRecords/releases/download/v0.1.0-beta5/kRecords-v0.1.0-beta5.apk)
 
 You can also browse all builds on the [Releases page](https://github.com/zenpeartree/kRecords/releases).
+
+## What It Solves
+
+Karoo Live Segments works well, but for my use case it pushed too much manual work into Strava:
+- favorite the segments you care about
+- keep that list trimmed
+- manage it again when your routes and training focus change
+
+`kRecords` is meant to remove that friction. After auth, the alerts should just work.
 
 ## What You Need
 
 - A Hammerhead Karoo
-- A phone to complete Strava login
+- A phone for the Strava login flow
 - A Strava account
 - Internet access for the first sync and occasional refreshes
 
@@ -23,60 +37,60 @@ You can also browse all builds on the [Releases page](https://github.com/zenpear
 
 ### Option 1: Hammerhead Companion App
 
-1. Download the latest `app-release.apk` or `app-debug.apk` from the [Releases page](https://github.com/zenpeartree/kRecords/releases).
-2. Open the APK on your phone.
+1. Download the APK from the [Releases page](https://github.com/zenpeartree/kRecords/releases).
+2. Open it on your phone.
 3. Share it to the Hammerhead Companion App.
 4. Install it on your Karoo when prompted.
 
 ### Option 2: ADB
 
 1. Download the APK from the [Releases page](https://github.com/zenpeartree/kRecords/releases).
-2. Connect your computer to the Karoo with ADB.
+2. Connect your Karoo to your computer.
 3. Install it:
 
 ```bash
-adb install app-release.apk
+adb install kRecords-v0.1.0-beta5.apk
 ```
 
 ## First-Time Setup
+
+This is the only real setup:
 
 1. Open `kRecords` on your Karoo.
 2. Tap `Start Strava Auth`.
 3. Scan the QR code with your phone.
 4. Sign in to Strava and approve access.
 5. Return to the Karoo.
-6. Wait for kRecords to detect the completed login, or tap `Check Auth Status`.
+6. Wait for `kRecords` to detect the completed login, or tap `Check Auth Status`.
 7. Tap `Sync Recent History`.
 
-Once that finishes, kRecords will have your initial segment library and PR baselines.
+After that, there is nothing else to manage on Strava or on the Karoo. Just ride.
 
-## How To Use It
+## How It Works
 
-1. Start a ride on your Karoo.
-2. Keep riding normally.
-3. When you complete a cached segment faster than your current best local time, kRecords will show an in-ride PR alert.
+- Auth happens on your phone through a QR-code flow.
+- Recent Strava activity history is synced to build your first segment/PR baseline.
+- Nearby segments are cached locally on the Karoo as you move.
+- The app matches your live ride to those nearby segments on-device.
+- If you beat your best local time, `kRecords` plays an alert and shows the PR result.
 
-## What It Does
+## What The Alert Shows
 
-- Starts Strava login on your phone with a QR code
-- Syncs your recent Strava segment history
-- Keeps a local cache of nearby segments on the device
-- Hydrates nearby segment tiles as you move
-- Detects segment starts and finishes on-device
-- Alerts you when you set a new local PR
+- If the segment already had a previous PR, the alert shows the new recorded time and the time saved.
+- If it is your first known result for that segment, the alert just shows the recorded time.
 
 ## Notes
 
-- kRecords uses a backend for Strava authentication and sync, but end users do not need to set up Firebase.
-- PR detection is local to kRecords and is not the same thing as official Strava Live Segments.
+- End users do not need to set up Firebase or any backend infrastructure.
+- This is not Strava Live Segments. It is a separate Karoo app focused on local PR detection.
 - Nearby segment discovery depends on what has already been synced and cached for your riding area.
 
 ## Troubleshooting
 
-- If the QR code does not appear, make sure the device has internet access.
+- If the QR code does not appear, make sure the Karoo has internet access.
 - If login finishes on the phone but the Karoo does not update, tap `Check Auth Status`.
-- If no segments appear during a ride, run `Sync Recent History` again before riding.
+- If no segments seem to trigger, run `Sync Recent History` again before riding.
 
 ## For Developers
 
-The app and Firebase backend live in this repo. If you want to build or deploy it yourself, see the Android app in `app/` and the Firebase backend in `functions/`.
+The Android app lives in `app/` and the Firebase backend lives in `functions/`.
