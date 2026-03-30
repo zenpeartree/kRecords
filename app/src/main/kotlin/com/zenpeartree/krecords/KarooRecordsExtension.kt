@@ -103,7 +103,7 @@ class KarooRecordsExtension : KarooExtension(EXTENSION_ID, "1") {
                 ensureLocationConsumer()
                 noteStatus("Ride active.")
                 scheduleHistorySyncIfNeeded()
-                if (!settings.isConfigured() && !setupNoticeShown) {
+                if (!settings.isAuthenticated() && !setupNoticeShown) {
                     setupNoticeShown = notifyNeedsSetup()
                 }
             } else {
@@ -138,7 +138,7 @@ class KarooRecordsExtension : KarooExtension(EXTENSION_ID, "1") {
         val wantedTiles = planner.tilesWithinRadius(sample.point, FETCH_RADIUS_KM)
         if (tileId != lastTileId || movedEnough) {
             activeSegments = repo.loadSegmentsForTiles(wantedTiles, MAX_ACTIVE_SEGMENTS)
-            scheduleNearbyHydration(wantedTiles)
+            scheduleNearbyHydration(sample.point, wantedTiles)
             lastTileId = tileId
             lastRefreshPoint = sample.point
         }
@@ -209,13 +209,15 @@ class KarooRecordsExtension : KarooExtension(EXTENSION_ID, "1") {
         }
     }
 
-    private fun scheduleNearbyHydration(wantedTiles: Set<String>) {
+    private fun scheduleNearbyHydration(center: GeoPoint, wantedTiles: Set<String>) {
         if (!settings.isConfigured() || !settings.isAuthenticated()) return
         val now = System.currentTimeMillis()
         if (now - lastHydrationRequestMs < HYDRATION_INTERVAL_MS) return
         if (!syncInFlight.compareAndSet(false, true)) return
 
-        val staleTiles = repo.missingOrExpiredTiles(wantedTiles, now).take(MAX_TILE_HYDRATION)
+        val staleTiles = planner
+            .prioritizeTiles(center, repo.missingOrExpiredTiles(wantedTiles, now))
+            .take(MAX_TILE_HYDRATION)
         if (staleTiles.isNotEmpty()) {
             noteStatus("Hydrating ${staleTiles.size}/${wantedTiles.size} nearby tiles.")
         }
@@ -334,9 +336,9 @@ class KarooRecordsExtension : KarooExtension(EXTENSION_ID, "1") {
         private const val FETCH_RADIUS_KM = 20.0
         private const val REFRESH_DISTANCE_METERS = 250.0
         private const val MAX_ACTIVE_SEGMENTS = 1000
-        private const val MAX_TILE_HYDRATION = 2
+        private const val MAX_TILE_HYDRATION = 8
         private const val HISTORY_SYNC_INTERVAL_MS = 6 * 60 * 60 * 1000L
-        private const val HYDRATION_INTERVAL_MS = 30_000L
+        private const val HYDRATION_INTERVAL_MS = 10_000L
     }
 }
 

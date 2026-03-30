@@ -15,7 +15,7 @@ Compatible with Strava.
 
 Download the current APK here:
 
-[kRecords v0.1.1 APK](https://github.com/zenpeartree/kRecords/releases/download/v0.1.1/kRecords-v0.1.1.apk)
+[kRecords v0.1.2 APK](https://github.com/zenpeartree/kRecords/releases/download/v0.1.2/kRecords-v0.1.2.apk)
 
 You can also browse all builds on the [Releases page](https://github.com/zenpeartree/kRecords/releases).
 

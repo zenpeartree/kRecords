@@ -197,6 +197,17 @@ class TilePlanner(private val zoom: Int = 12) {
         return ids
     }
 
+    fun prioritizeTiles(center: GeoPoint, tileIds: Collection<String>): List<String> {
+        return tileIds.sortedBy { tileId ->
+            val bounds = boundsForTile(tileId)
+            val tileCenter = GeoPoint(
+                lat = (bounds.minLat + bounds.maxLat) / 2.0,
+                lng = (bounds.minLng + bounds.maxLng) / 2.0,
+            )
+            haversineMeters(center, tileCenter)
+        }
+    }
+
     private fun lonToTileX(lng: Double): Int {
         val normalized = ((lng + 180.0) / 360.0).coerceIn(0.0, 0.999999)
         return floor(normalized * 2.0.pow(zoom.toDouble())).toInt()

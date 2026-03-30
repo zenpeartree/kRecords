@@ -6,13 +6,14 @@ import java.util.UUID
 class SettingsStore(context: Context) {
     private val prefs = context.getSharedPreferences("krecords-settings", Context.MODE_PRIVATE)
 
-    fun loadBackendConfig(): BackendConfig? {
-        val backendUrl = prefs.getString(KEY_BACKEND_URL, PRODUCTION_BACKEND_URL)?.trim().orEmpty()
-        if (backendUrl.isBlank()) {
-            return null
-        }
+    init {
+        // The production backend is now built in, so we clear any old custom URL value.
+        prefs.edit().remove(KEY_BACKEND_URL).apply()
+    }
+
+    fun loadBackendConfig(): BackendConfig {
         return BackendConfig(
-            backendUrl = backendUrl.trimEnd('/'),
+            backendUrl = PRODUCTION_BACKEND_URL,
             deviceId = deviceId(),
             deviceSecret = deviceSecret(),
             activeAuthSessionId = prefs.getString(KEY_ACTIVE_AUTH_SESSION_ID, null),
@@ -20,16 +21,14 @@ class SettingsStore(context: Context) {
         )
     }
 
-    fun isConfigured(): Boolean = loadBackendConfig() != null
+    fun isConfigured(): Boolean = true
 
     fun isAuthenticated(): Boolean = prefs.getBoolean(KEY_AUTHENTICATED, false)
 
     fun saveBackendUrl(
         backendUrl: String,
     ) {
-        prefs.edit()
-            .putString(KEY_BACKEND_URL, backendUrl.trim().trimEnd('/'))
-            .apply()
+        prefs.edit().remove(KEY_BACKEND_URL).apply()
     }
 
     fun recordAuthSession(session: AuthSessionStart) {

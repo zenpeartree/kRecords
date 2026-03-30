@@ -3,12 +3,19 @@ package com.zenpeartree.krecords
 import android.graphics.Bitmap
 import android.graphics.Color
 import com.google.zxing.BarcodeFormat
+import com.google.zxing.EncodeHintType
 import com.google.zxing.MultiFormatWriter
 import com.google.zxing.common.BitMatrix
+import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 
 object QrCodeGenerator {
-    fun generate(content: String, sizePx: Int = 800): Bitmap {
-        val matrix = MultiFormatWriter().encode(content, BarcodeFormat.QR_CODE, sizePx, sizePx)
+    fun generate(content: String, sizePx: Int = 1024): Bitmap {
+        val hints = mapOf(
+            EncodeHintType.MARGIN to 8,
+            EncodeHintType.ERROR_CORRECTION to ErrorCorrectionLevel.H,
+            EncodeHintType.CHARACTER_SET to Charsets.UTF_8.name(),
+        )
+        val matrix = MultiFormatWriter().encode(content, BarcodeFormat.QR_CODE, sizePx, sizePx, hints)
         return matrix.toBitmap()
     }
 

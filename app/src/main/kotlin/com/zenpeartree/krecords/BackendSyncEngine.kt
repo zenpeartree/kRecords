@@ -10,7 +10,7 @@ class BackendSyncEngine(
     private val planner: TilePlanner,
 ) {
     fun startAuthSession(httpClient: HttpClient): AuthSessionStart? {
-        val config = settings.loadBackendConfig() ?: return null
+        val config = settings.loadBackendConfig()
         val response = postJson(
             httpClient,
             "${config.backendUrl}/api/auth/start",
@@ -32,7 +32,7 @@ class BackendSyncEngine(
     }
 
     fun getAuthSessionStatus(httpClient: HttpClient): AuthSessionStatus? {
-        val config = settings.loadBackendConfig() ?: return null
+        val config = settings.loadBackendConfig()
         val sessionId = config.activeAuthSessionId ?: return null
         val response = httpClient.requestBlocking(
             HttpRequest(
@@ -60,7 +60,7 @@ class BackendSyncEngine(
     }
 
     fun syncRecentActivities(httpClient: HttpClient): SyncSummary {
-        val config = settings.loadBackendConfig() ?: return SyncSummary(message = "Save the Firebase backend URL first.")
+        val config = settings.loadBackendConfig()
         val response = postJson(
             httpClient,
             "${config.backendUrl}/api/sync/history",
@@ -86,7 +86,7 @@ class BackendSyncEngine(
     }
 
     fun hydrateTiles(httpClient: HttpClient, tileIds: List<String>): SyncSummary {
-        val config = settings.loadBackendConfig() ?: return SyncSummary(message = "Save the Firebase backend URL first.")
+        val config = settings.loadBackendConfig()
         if (tileIds.isEmpty()) return SyncSummary(message = "Nearby tiles already fresh.")
 
         val requestedTiles = JSONArray()

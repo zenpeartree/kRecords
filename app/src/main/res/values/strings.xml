@@ -6,13 +6,20 @@
     <string name="ride_field_nearby">Nearby Segments</string>
     <string name="ride_field_nearby_description">Ride field that shows how many nearby segments kRecords is tracking</string>
     <string name="ride_field_status_title">kRecords</string>
-    <string name="ride_field_status_subtitle">Tap to manage backend sync</string>
+    <string name="ride_field_status_subtitle">Tap to connect Strava and manage sync</string>
     <string name="open_settings">Open Settings</string>
     <string name="connect_with_strava">Connect with Strava</string>
+    <string name="reconnect_strava">Reconnect Strava</string>
     <string name="check_auth_status">Check Auth Status</string>
     <string name="sync_history">Sync Recent History</string>
     <string name="clear_cache">Clear Cache</string>
-    <string name="status_idle">Configure the Firebase backend, then connect with Strava.</string>
-    <string name="auth_help">1. Tap Connect with Strava and scan the QR on your phone. 2. Finish Strava login on the phone. 3. Tap Check Auth Status. 4. Sync recent history and start riding.</string>
+    <string name="status_idle">Connect Strava once, sync once, then ride.</string>
+    <string name="hero_title">PR alerts without the favourites mess</string>
+    <string name="hero_subtitle">Built for the Karoo so segment PR alerts can just happen while you ride.</string>
+    <string name="actions_title">Quick Actions</string>
+    <string name="actions_subtitle">Connect Strava, confirm the login, sync your recent segment history, and clear local cache if needed.</string>
+    <string name="phone_sign_in_title">Phone Sign-In</string>
+    <string name="auth_qr_description">Strava auth QR</string>
+    <string name="summary_title">Ride Readiness</string>
     <string name="strava_compatibility">Compatible with Strava</string>
 </resources>
