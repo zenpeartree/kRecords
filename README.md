@@ -9,11 +9,13 @@ I wanted the PR alerts, but I did not want the maintenance work:
 
 With `kRecords`, you just connect Strava, sync once, and ride. The app keeps a local segment cache, watches your ride live, and alerts you when you beat your best time on a segment it knows about.
 
+Compatible with Strava.
+
 ## Download
 
 Download the current APK here:
 
-[kRecords v0.1.0 APK](https://github.com/zenpeartree/kRecords/releases/download/v0.1.0/kRecords-v0.1.0.apk)
+[kRecords v0.1.1 APK](https://github.com/zenpeartree/kRecords/releases/download/v0.1.1/kRecords-v0.1.1.apk)
 
 You can also browse all builds on the [Releases page](https://github.com/zenpeartree/kRecords/releases).
 
@@ -57,7 +59,7 @@ Karoo Live Segments works well, but for my use case it pushed too much manual wo
 3. Install it:
 
 ```bash
-adb install kRecords-v0.1.0.apk
+adb install kRecords-v0.1.1.apk
 ```
 
 ## First-Time Setup
@@ -65,7 +67,7 @@ adb install kRecords-v0.1.0.apk
 This is the only real setup:
 
 1. Open `kRecords` on your Karoo.
-2. Tap `Start Strava Auth`.
+2. Tap `Connect with Strava`.
 3. Scan the QR code with your phone.
 4. Sign in to Strava and approve access.
 5. Return to the Karoo.

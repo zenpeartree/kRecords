@@ -137,7 +137,7 @@ class MainActivity : AppCompatActivity() {
         }
         if (authUrl.isNullOrBlank()) {
             authQrImage.visibility = android.view.View.GONE
-            authUrlText.text = "Tap Start Strava Auth to create a phone login session."
+            authUrlText.text = "Tap Connect with Strava to create a phone login session."
             return
         }
 

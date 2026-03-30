@@ -37,14 +37,14 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:text="Start Strava Auth" />
+            android:text="@string/connect_with_strava" />
 
         <Button
             android:id="@+id/checkAuthButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="Check Auth Status" />
+            android:text="@string/check_auth_status" />
 
         <ImageView
             android:id="@+id/authQrImage"
@@ -90,5 +90,14 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
             android:textAppearance="@android:style/TextAppearance.DeviceDefault.Medium" />
+
+        <TextView
+            android:id="@+id/compatibilityText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/strava_compatibility"
+            android:textAppearance="@android:style/TextAppearance.DeviceDefault.Small"
+            android:textStyle="bold" />
     </LinearLayout>
 </ScrollView>

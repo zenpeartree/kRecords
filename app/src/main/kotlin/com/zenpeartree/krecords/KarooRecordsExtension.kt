@@ -292,7 +292,7 @@ class KarooRecordsExtension : KarooExtension(EXTENSION_ID, "1") {
             SystemNotification(
                 id = "krecords-setup",
                 header = "kRecords",
-                message = "Add the Firebase backend URL and connect Strava.",
+                message = "Open kRecords and connect with Strava.",
                 action = "Open",
                 actionIntent = SETTINGS_INTENT_ACTION,
                 style = SystemNotification.Style.SETUP,

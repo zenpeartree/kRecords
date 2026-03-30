@@ -1,4 +1,5 @@
 import * as admin from "firebase-admin";
+import { createHash } from "crypto";
 import express, { Request, Response } from "express";
 import { onRequest } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
@@ -14,9 +15,20 @@ app.set("trust proxy", true);
 app.use(express.json());
 
 const PUBLIC_WEB_BASE_URL = "https://krecords-87730.web.app";
+const STRAVA_PUSH_SUBSCRIPTIONS_URL = "https://www.strava.com/api/v3/push_subscriptions";
+const WEBHOOK_META_DOC = "stravaWebhook";
 
 app.post("/api/auth/start", async (req, res) => {
   try {
+    try {
+      await ensureStravaWebhookSubscription();
+    } catch (webhookError) {
+      console.error("Unable to verify or create the Strava webhook subscription.", webhookError);
+      await saveWebhookMeta({
+        lastError: webhookError instanceof Error ? webhookError.message : "Unknown webhook setup error.",
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
     const { deviceId, deviceSecret } = parseDeviceBody(req.body);
     const userRef = await ensureUser(deviceId, deviceSecret);
     const sessionId = randomId();
@@ -80,11 +92,18 @@ app.get("/api/auth/session", async (req, res) => {
 });
 
 app.get("/api/auth/callback", async (req, res) => {
-  const state = requireString(req.query.state, "state");
   const error = optionalString(req.query.error);
+  const state = optionalString(req.query.state);
   const code = optionalString(req.query.code);
 
-  const sessionQuery = await db.collection("authSessions").where("state", "==", state).limit(1).get();
+  if (error && !state) {
+    res.status(400).send(renderHtml("Authorization cancelled", `Strava returned: ${escapeHtml(error)}`));
+    return;
+  }
+
+  const requiredState = requireString(state, "state");
+
+  const sessionQuery = await db.collection("authSessions").where("state", "==", requiredState).limit(1).get();
   if (sessionQuery.empty) {
     res.status(404).send(renderHtml("Session not found", "This authorization session no longer exists."));
     return;
@@ -305,6 +324,67 @@ app.post("/api/sync/tiles", async (req, res) => {
   }
 });
 
+app.get("/api/strava/webhook", async (req, res) => {
+  const mode = optionalString(req.query["hub.mode"]);
+  const challenge = optionalString(req.query["hub.challenge"]);
+  const token = optionalString(req.query["hub.verify_token"]);
+
+  if (mode === "subscribe" && token === stravaWebhookVerifyToken() && challenge) {
+    await saveWebhookMeta({
+      lastVerifiedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    res.json({ "hub.challenge": challenge });
+    return;
+  }
+
+  res.status(403).json({ message: "Invalid webhook verification request." });
+});
+
+app.post("/api/strava/webhook", async (req, res) => {
+  const event = req.body as StravaWebhookEvent;
+  res.status(200).json({ received: true });
+
+  try {
+    await saveWebhookMeta({
+      lastEventAt: admin.firestore.FieldValue.serverTimestamp(),
+      lastEventType: `${String(event.object_type ?? "unknown")}:${String(event.aspect_type ?? "unknown")}`,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    const isDeauthorization =
+      event.object_type === "athlete" &&
+      event.aspect_type === "update" &&
+      String(event.updates?.authorized ?? "") === "false";
+
+    if (!isDeauthorization) {
+      return;
+    }
+
+    const athleteId = Number(event.owner_id ?? event.object_id ?? 0);
+    if (!athleteId) {
+      console.warn("Received athlete deauthorization webhook without a usable athlete id.", event);
+      return;
+    }
+
+    const matchingUsers = await db.collection("users")
+      .where("athleteId", "==", athleteId)
+      .get();
+
+    if (matchingUsers.empty) {
+      console.log(`Received deauthorization webhook for athlete ${athleteId}, but no matching users were found.`);
+      return;
+    }
+
+    await Promise.all(matchingUsers.docs.map(async (doc) => {
+      await db.recursiveDelete(doc.ref);
+    }));
+    console.log(`Processed Strava deauthorization for athlete ${athleteId} and deleted ${matchingUsers.size} user records.`);
+  } catch (error) {
+    console.error("Failed to process Strava webhook event.", error, event);
+  }
+});
+
 export const api = onRequest(
   {
     region: "us-central1",
@@ -343,6 +423,21 @@ type StoredSegment = {
   bestElapsedTimeSeconds?: number;
   stravaPrElapsedTimeSeconds?: number;
   updatedAt: number;
+};
+
+type StravaPushSubscription = {
+  id: number;
+  callback_url?: string;
+};
+
+type StravaWebhookEvent = {
+  aspect_type?: string;
+  event_time?: number;
+  object_id?: number;
+  object_type?: string;
+  owner_id?: number;
+  subscription_id?: number;
+  updates?: Record<string, unknown>;
 };
 
 function parseDeviceBody(body: unknown): { deviceId: string; deviceSecret: string } {
@@ -391,6 +486,34 @@ async function loadAuthorizedUser(deviceId: string, deviceSecret: string): Promi
   return user;
 }
 
+async function ensureStravaWebhookSubscription() {
+  const callbackUrl = buildPublicUrl("/api/strava/webhook");
+  const verifyToken = stravaWebhookVerifyToken();
+  const subscriptions = await listPushSubscriptions();
+  const matching = subscriptions.find((subscription) => subscription.callback_url === callbackUrl);
+
+  if (matching) {
+    await saveWebhookMeta({
+      subscriptionId: matching.id,
+      callbackUrl,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    return matching.id;
+  }
+
+  for (const subscription of subscriptions) {
+    await deletePushSubscription(subscription.id);
+  }
+
+  const createdId = await createPushSubscription(callbackUrl, verifyToken);
+  await saveWebhookMeta({
+    subscriptionId: createdId,
+    callbackUrl,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  return createdId;
+}
+
 function buildStravaAuthUrl(callbackUrl: string, state: string): string {
   const url = new URL("https://www.strava.com/oauth/mobile/authorize");
   url.searchParams.set("client_id", stravaClientId.value().trim());
@@ -425,6 +548,56 @@ async function exchangeCode(code: string, redirectUri: string) {
     refreshToken: String(body.refresh_token ?? ""),
     expiresAt: Number(body.expires_at ?? 0),
   };
+}
+
+async function listPushSubscriptions(): Promise<StravaPushSubscription[]> {
+  const url = buildUrl(
+    STRAVA_PUSH_SUBSCRIPTIONS_URL,
+    {
+      client_id: stravaClientId.value().trim(),
+      client_secret: stravaClientSecret.value().trim(),
+    },
+  );
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to list Strava webhook subscriptions (${response.status}).`);
+  }
+  return response.json() as Promise<StravaPushSubscription[]>;
+}
+
+async function createPushSubscription(callbackUrl: string, verifyToken: string): Promise<number> {
+  const response = await fetch(STRAVA_PUSH_SUBSCRIPTIONS_URL, {
+    method: "POST",
+    body: new URLSearchParams({
+      client_id: stravaClientId.value().trim(),
+      client_secret: stravaClientSecret.value().trim(),
+      callback_url: callbackUrl,
+      verify_token: verifyToken,
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to create Strava webhook subscription (${response.status}).`);
+  }
+  const body = await response.json() as Record<string, unknown>;
+  const id = Number(body.id ?? 0);
+  if (!id) {
+    throw new Error("Strava did not return a webhook subscription id.");
+  }
+  return id;
+}
+
+async function deletePushSubscription(subscriptionId: number) {
+  const url = buildUrl(
+    `${STRAVA_PUSH_SUBSCRIPTIONS_URL}/${subscriptionId}`,
+    {
+      client_id: stravaClientId.value().trim(),
+      client_secret: stravaClientSecret.value().trim(),
+    },
+  );
+  const response = await fetch(url, { method: "DELETE" });
+  if (!response.ok && response.status !== 404) {
+    throw new Error(`Failed to delete Strava webhook subscription ${subscriptionId} (${response.status}).`);
+  }
 }
 
 async function ensureAccessToken(deviceId: string, user: UserDoc): Promise<string> {
@@ -539,6 +712,25 @@ function parseLatLng(value: unknown): { lat: number; lng: number } {
 
 function buildPublicUrl(path: string): string {
   return `${PUBLIC_WEB_BASE_URL}${path}`;
+}
+
+function buildUrl(baseUrl: string, params: Record<string, string>): string {
+  const url = new URL(baseUrl);
+  Object.entries(params).forEach(([key, value]) => {
+    url.searchParams.set(key, value);
+  });
+  return url.toString();
+}
+
+function stravaWebhookVerifyToken(): string {
+  return createHash("sha256")
+    .update(`${stravaClientSecret.value().trim()}:krecords:webhook`)
+    .digest("hex")
+    .slice(0, 32);
+}
+
+async function saveWebhookMeta(fields: Record<string, unknown>) {
+  await db.collection("_meta").doc(WEBHOOK_META_DOC).set(stripUndefined(fields), { merge: true });
 }
 
 function requireString(value: unknown, fieldName: string): string {
